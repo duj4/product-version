@@ -1,0 +1,3 @@
+HTTPS_PROXY=http://appproxy-inet.srv.mssip.ms.com.cn:8080
+HTTP_PROXY=http://appproxy-inet.srv.mssip.ms.com.cn:8080
+NO_PROXY=ms.com.cn,localhost,127.0.0.1

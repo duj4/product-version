@@ -1,0 +1,65 @@
+products:
+  - key: jsm
+    metadata:
+      display_name: Jira Service Management
+      application_type: generic
+
+    cmdb:
+      enabled: true
+      name: Atlassian.JiraServiceManagement
+
+    runtime:
+      deployments:
+        - env: qa
+          enabled: true
+          type: http
+          endpoint: https://itsm-qa.lb.ms.com.cn/rest/servicedeskapi/info
+          method: GET
+          auth:
+            type: none
+          accepted_statuses:
+            - 200
+            - 401
+          parser:
+            version_field: platformVersion
+
+        # Fill in the production endpoint before enabling this deployment.
+        - env: prod
+          enabled: false
+
+    eol:
+      enabled: true
+      product: jira-software
+      cycle_strategy: major_minor
+      prefer_lts: true
+
+  - key: loki
+    metadata:
+      display_name: Grafana Loki
+      application_type: docker
+
+    cmdb:
+      enabled: true
+      name: grafana/loki
+
+    runtime:
+      deployments:
+        - env: qa
+          enabled: true
+          type: http
+          endpoint: https://laas-msms-qa.shg.ms.com.cn/loki/api/v1/status/buildinfo
+          method: GET
+          auth:
+            type: mtls
+          parser:
+            version_field: version
+
+        # Fill in the production endpoint before enabling this deployment.
+        - env: prod
+          enabled: false
+
+    eol:
+      enabled: true
+      product: grafana-loki
+      cycle_strategy: major_minor
+      prefer_lts: false
