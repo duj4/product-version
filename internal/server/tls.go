@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"product-version/internal/logger"
 	"product-version/internal/versions"
 )
 
@@ -33,12 +32,8 @@ type ClientTLSPaths struct {
 // resolveTLSPaths returns the server certificate and both supported outbound
 // client profiles.
 func resolveTLSPaths() (TLSPaths, error) {
-	tlsDir := strings.TrimSpace(os.Getenv("APP_TLS_DIR"))
-	if tlsDir == "" {
-		tlsDir = defaultTLSDir
-		logger.Info("APP_TLS_DIR not set, using default", "path", tlsDir)
-	}
-	logger.Info("APP_TLS_DIR set", "path", tlsDir)
+	tlsDir, source := resolveEnvVarValue("APP_TLS_DIR", defaultTLSDir)
+	logResolvedEnvValue("tls directory resolved", "APP_TLS_DIR", tlsDir, source)
 
 	return TLSPaths{
 		ServerCert: filepath.Join(tlsDir, "tls.pem"),

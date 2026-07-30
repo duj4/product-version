@@ -22,6 +22,7 @@ func ginLogger() gin.HandlerFunc {
 
 		duration := time.Since(start)
 		status := c.Writer.Status()
+		slow := duration > slowRequestThreshold
 
 		if path == "/status" || path == "/healthz" {
 			return
@@ -33,17 +34,18 @@ func ginLogger() gin.HandlerFunc {
 			"status", status,
 			"duration_ms", duration.Milliseconds(),
 			"client_ip", clientIP,
+			"slow", slow,
 		}
 
 		switch {
 		case status >= 500:
-			logger.Error("http request", args...)
+			logger.Error("http request completed", args...)
 		case status >= 400:
-			logger.Warn("http request", args...)
-		case duration > slowRequestThreshold:
-			logger.Warn("slow http request", args...)
+			logger.Warn("http request completed", args...)
+		case slow:
+			logger.Warn("http request completed", args...)
 		default:
-			logger.Info("http request", args...)
+			logger.Info("http request completed", args...)
 		}
 	}
 }

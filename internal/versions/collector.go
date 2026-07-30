@@ -72,8 +72,8 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 			})
 			if err != nil {
 				logger.Error(
-					"version source failed",
-					"product", product.Key,
+					"version source collection failed",
+					"product_key", product.Key,
 					"source", "cmdb",
 					"error", err,
 				)
@@ -102,8 +102,8 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 			})
 			if err != nil {
 				logger.Error(
-					"version source failed",
-					"product", product.Key,
+					"version source collection failed",
+					"product_key", product.Key,
 					"source", "eol",
 					"eol_product", product.EOL.Product,
 					"error", err,
@@ -142,11 +142,11 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 				}
 
 				logger.Error(
-					"version source failed",
-					"product", product.Key,
+					"version source collection failed",
+					"product_key", product.Key,
 					"env", deployment.Env,
 					"source", "runtime",
-					"type", deployment.Type,
+					"runtime_type", deployment.Type,
 					"endpoint", endpoint,
 					"error", err,
 				)

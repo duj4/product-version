@@ -18,7 +18,7 @@ func Info(msg string, args ...any) {
 	Logger.Info(msg, args...)
 }
 
-// Warn logs an warn message.
+// Warn logs a warning message.
 func Warn(msg string, args ...any) {
 	Logger.Warn(msg, args...)
 }

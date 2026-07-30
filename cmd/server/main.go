@@ -12,7 +12,7 @@ func main() {
 	logger.Init()
 
 	if err := server.Run(); err != nil {
-		logger.Error("server exited with error", "err", err)
+		logger.Error("service exited with error", "error", err)
 		os.Exit(1)
 	}
 }

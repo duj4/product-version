@@ -32,13 +32,9 @@ const (
 // templates and static assets, and starts the HTTPS server.
 func Run() error {
 	// Resolve the runtime environment.
-	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-	if env == "" {
-		env = "prod"
-	}
-
-	if env != "qa" && env != "prod" {
-		return fmt.Errorf("unsupported APP_ENV %q, expected qa or prod", env)
+	env, err := resolveAppEnvironment()
+	if err != nil {
+		return err
 	}
 
 	// Resolve TLS assets for the server and outbound client requests.
@@ -51,7 +47,9 @@ func Run() error {
 		return err
 	}
 	logger.Info(
-		"TLS paths resolved and validated",
+		"tls paths validated",
+		"server_cert", tlsPaths.ServerCert,
+		"server_key", tlsPaths.ServerKey,
 		"client_profiles", len(tlsPaths.ClientProfiles),
 	)
 
@@ -63,7 +61,7 @@ func Run() error {
 	productsConfigPath := filepath.Join(configDir, "products.yaml")
 
 	logger.Info(
-		"loading configuration",
+		"configuration files resolved",
 		"env", env,
 		"config_dir", configDir,
 		"cmdb_config", cmdbConfigPath,
@@ -81,7 +79,12 @@ func Run() error {
 	cmdbConfig.CACertPath = cmdbTLSProfile.CACert
 	cmdbConfig.ClientCertPath = cmdbTLSProfile.ClientCert
 	cmdbConfig.ClientKeyPath = cmdbTLSProfile.ClientKey
-	logger.Info("CMDB environment selected", "env", env, "url", cmdbConfig.VersionsAPIURL)
+	logger.Info(
+		"cmdb configuration loaded",
+		"env", env,
+		"url", cmdbConfig.VersionsAPIURL,
+		"tls_profile", env,
+	)
 
 	// Create the shared CMDB client.
 	cmdbClient, err := cmdb.NewClient(cmdbConfig)
@@ -98,6 +101,11 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to load versions config: %w", err)
 	}
+	logger.Info(
+		"product configuration loaded",
+		"path", productsConfigPath,
+		"product_count", len(versionsConfig.Products),
+	)
 
 	runtimeProfiles := make(map[string]source.RuntimeTLSProfile, len(tlsPaths.ClientProfiles))
 	for profileEnv, profile := range tlsPaths.ClientProfiles {
@@ -116,19 +124,23 @@ func Run() error {
 	versionsService := versions.NewService(versionsConfig, cmdbClient, runtimeSource)
 
 	// Set Gin mode before creating the engine.
-	if env == "prod" {
-		gin.SetMode(gin.ReleaseMode)
-		logger.Info("gin running in release mode (Prod)")
-	} else {
-		logger.Info("gin running in debug mode (QA)")
+	ginMode := gin.DebugMode
+	if env == versions.EnvironmentProd {
+		ginMode = gin.ReleaseMode
 	}
+	gin.SetMode(ginMode)
+	logger.Info(
+		"gin mode configured",
+		"mode", ginMode,
+		"env", env,
+	)
 
 	// Initialize the Gin engine and middleware stack.
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(ginLogger())
 
-	if env == "prod" {
+	if env == versions.EnvironmentProd {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			return fmt.Errorf("failed to set trusted proxies: %w", err)
 		}
@@ -160,17 +172,14 @@ func Run() error {
 
 // runTLSServer starts the Gin HTTPS server.
 func runTLSServer(r *gin.Engine, env, certFilePath, keyFilePath string) error {
-	listenAddr := strings.TrimSpace(os.Getenv("APP_LISTEN_ADDR"))
-	if listenAddr == "" {
-		listenAddr = defaultListenAddr
-	}
+	listenAddr := resolveListenAddress()
 
 	logger.Info(
-		"starting service",
-		"listen", listenAddr,
+		"https server starting",
+		"listen_addr", listenAddr,
 		"env", env,
-		"cert", certFilePath,
-		"key", keyFilePath,
+		"server_cert", certFilePath,
+		"server_key", keyFilePath,
 	)
 
 	if err := r.RunTLS(listenAddr, certFilePath, keyFilePath); err != nil {
@@ -182,12 +191,47 @@ func runTLSServer(r *gin.Engine, env, certFilePath, keyFilePath string) error {
 
 // resolveConfigDir resolves the effective service configuration directory.
 func resolveConfigDir() string {
-	baseConfigDir := strings.TrimSpace(os.Getenv("APP_CONFIG_DIR"))
-	if baseConfigDir == "" {
-		baseConfigDir = defaultConfigDir
-		logger.Info("APP_CONFIG_DIR not set, using default", "path", baseConfigDir)
-	}
-	logger.Info("APP_CONFIG_DIR set", "path", baseConfigDir)
+	baseConfigDir, source := resolveEnvVarValue("APP_CONFIG_DIR", defaultConfigDir)
+	logResolvedEnvValue("configuration directory resolved", "APP_CONFIG_DIR", baseConfigDir, source)
 
 	return baseConfigDir
+}
+
+// resolveAppEnvironment resolves and validates the service runtime environment.
+func resolveAppEnvironment() (string, error) {
+	env, source := resolveEnvVarValue("APP_ENV", versions.EnvironmentProd)
+	env = strings.ToLower(env)
+	if env != versions.EnvironmentQA && env != versions.EnvironmentProd {
+		return "", fmt.Errorf("unsupported APP_ENV %q, expected qa or prod", env)
+	}
+
+	logResolvedEnvValue("application environment resolved", "APP_ENV", env, source)
+	return env, nil
+}
+
+// resolveListenAddress resolves the HTTPS server listen address.
+func resolveListenAddress() string {
+	listenAddr, source := resolveEnvVarValue("APP_LISTEN_ADDR", defaultListenAddr)
+	logResolvedEnvValue("https listen address resolved", "APP_LISTEN_ADDR", listenAddr, source)
+	return listenAddr
+}
+
+// resolveEnvVarValue returns a trimmed environment variable value or its default.
+func resolveEnvVarValue(name, defaultValue string) (string, string) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value != "" {
+		return value, "environment"
+	}
+
+	return defaultValue, "default"
+}
+
+// logResolvedEnvValue logs an environment-backed setting in a consistent format.
+func logResolvedEnvValue(message, envVar, value, source string) {
+	logger.Info(
+		message,
+		"env_var", envVar,
+		"value", value,
+		"source", source,
+	)
 }
