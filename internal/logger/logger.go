@@ -27,9 +27,3 @@ func Warn(msg string, args ...any) {
 func Error(msg string, args ...any) {
 	Logger.Error(msg, args...)
 }
-
-// Fatal logs an error message and exits the process.
-func Fatal(msg string, args ...any) {
-	Logger.Error(msg, args...)
-	os.Exit(1)
-}

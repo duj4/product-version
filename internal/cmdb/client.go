@@ -1,45 +1,15 @@
 package cmdb
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"time"
+	"net/http"
 
 	"product-version/internal/httpclient"
 )
 
-// LoadConfig reads CMDB settings from a JSON file and applies defaults.
-func LoadConfig(path string) (Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return Config{}, err
-	}
-
-	var cfg Config
-
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, err
-	}
-
-	if cfg.VersionsAPIURL == "" {
-		return Config{}, fmt.Errorf("versions_api_url is empty")
-	}
-
-	if cfg.PageSize == 0 {
-		cfg.PageSize = 100
-	}
-
-	if cfg.HTTPTimeoutSeconds == 0 {
-		cfg.HTTPTimeoutSeconds = 15
-	}
-
-	return cfg, nil
-}
-
-// HTTPTimeout returns the configured HTTP timeout as a time.Duration.
-func (cfg *Config) HTTPTimeout() time.Duration {
-	return time.Duration(cfg.HTTPTimeoutSeconds) * time.Second
+// Client calls the CMDB API over the configured HTTP transport.
+type Client struct {
+	httpClient *http.Client
+	cfg        Config
 }
 
 // NewClient creates a CMDB client backed by an mTLS HTTP transport.

@@ -1,4 +1,4 @@
-package middleware
+package server
 
 import (
 	"time"
@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GinLogger returns Gin middleware that logs completed HTTP requests.
-func GinLogger() gin.HandlerFunc {
+// ginLogger returns Gin middleware that logs completed HTTP requests.
+func ginLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		const slowRequestThreshold = 500 * time.Millisecond
 

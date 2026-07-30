@@ -1,4 +1,4 @@
-package provider
+package source
 
 import (
 	"context"
@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"product-version/internal/versions/model"
 	"strings"
 	"time"
+
+	"product-version/internal/versions/model"
 )
 
 const (

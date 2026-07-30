@@ -1,18 +1,17 @@
-package provider
+package source
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"product-version/internal/versions/model"
 	"strings"
 	"time"
+
+	"product-version/internal/httpclient"
+	"product-version/internal/versions/model"
 )
 
 const (
@@ -39,23 +38,22 @@ func NewRuntimeSource(timeout time.Duration, profiles map[string]RuntimeTLSProfi
 	}
 
 	source := &RuntimeSource{
-		plainClient: &http.Client{
-			Timeout:   timeout,
-			Transport: newRuntimeTransport(nil),
-		},
+		plainClient: httpclient.NewClient(timeout),
 		mtlsClients: make(map[string]*http.Client, len(profiles)),
 	}
 
 	for env, profile := range profiles {
-		tlsConfig, err := buildRuntimeTLSConfig(profile)
+		client, err := httpclient.NewTLSClient(
+			profile.CACertPath,
+			profile.ClientCertPath,
+			profile.ClientKeyPath,
+			timeout,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime mTLS client for env %q: %w", env, err)
 		}
 
-		source.mtlsClients[env] = &http.Client{
-			Timeout:   timeout,
-			Transport: newRuntimeTransport(tlsConfig),
-		}
+		source.mtlsClients[env] = client
 	}
 
 	return source, nil
@@ -135,10 +133,6 @@ func (s *RuntimeSource) fetchMimir(ctx context.Context, product RuntimeProduct) 
 		return model.RuntimeDeploymentResult{}, fmt.Errorf("product %q failed to create Mimir request: %w", product.Key, err)
 	}
 
-	for key, value := range product.Mimir.Headers {
-		req.Header.Set(key, value)
-	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return model.RuntimeDeploymentResult{}, fmt.Errorf("product %q failed to query Mimir: %w", product.Key, err)
@@ -194,45 +188,6 @@ func (s *RuntimeSource) clientFor(env string, auth RuntimeAuth) (*http.Client, e
 
 	default:
 		return nil, fmt.Errorf("unsupported runtime auth type %q", auth.Type)
-	}
-}
-
-// buildRuntimeTLSConfig creates a TLS configuration for runtime mTLS calls.
-func buildRuntimeTLSConfig(profile RuntimeTLSProfile) (*tls.Config, error) {
-	caCertPEM, err := os.ReadFile(profile.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read runtime CA cert %s: %w", profile.CACertPath, err)
-	}
-
-	rootCAs := x509.NewCertPool()
-	if ok := rootCAs.AppendCertsFromPEM(caCertPEM); !ok {
-		return nil, fmt.Errorf("failed to append runtime CA cert %s", profile.CACertPath)
-	}
-
-	clientCert, err := tls.LoadX509KeyPair(profile.ClientCertPath, profile.ClientKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to load runtime client certificate %s and key %s: %w",
-			profile.ClientCertPath,
-			profile.ClientKeyPath,
-			err,
-		)
-	}
-
-	return &tls.Config{
-		RootCAs:      rootCAs,
-		Certificates: []tls.Certificate{clientCert},
-		MinVersion:   tls.VersionTLS12,
-	}, nil
-}
-
-// newRuntimeTransport creates a pooled transport shared by concurrent runtime requests.
-func newRuntimeTransport(tlsConfig *tls.Config) *http.Transport {
-	return &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
 	}
 }
 

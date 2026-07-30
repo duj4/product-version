@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"embed"
@@ -10,12 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"product-version/internal/api"
 	"product-version/internal/cmdb"
 	"product-version/internal/logger"
-	"product-version/internal/middleware"
 	"product-version/internal/versions"
-	"product-version/internal/versions/provider"
+	"product-version/internal/versions/source"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,25 +23,8 @@ var webFiles embed.FS
 
 const (
 	defaultListenAddr = ":8443"
-	defaultTLSDir     = "/d/d1/product-version/tls"
-	defaultCACertFile = "/etc/pki/ca-trust/source/anchors/katello-server-ca.pem"
 	defaultConfigDir  = "/d/d1/product-version/config"
 )
-
-// TLSPaths groups the inbound server certificate and environment-specific
-// outbound client certificate profiles.
-type TLSPaths struct {
-	ServerCert     string
-	ServerKey      string
-	ClientProfiles map[string]ClientTLSPaths
-}
-
-// ClientTLSPaths contains the mTLS assets for one outbound environment.
-type ClientTLSPaths struct {
-	CACert     string
-	ClientCert string
-	ClientKey  string
-}
 
 // Run initializes and starts the Product Version web service.
 //
@@ -69,6 +50,10 @@ func Run() error {
 	if err := validateTLSPaths(tlsPaths); err != nil {
 		return err
 	}
+	logger.Info(
+		"TLS paths resolved and validated",
+		"client_profiles", len(tlsPaths.ClientProfiles),
+	)
 
 	// Resolve the configuration directory for the single service deployment.
 	configDir := resolveConfigDir()
@@ -86,16 +71,17 @@ func Run() error {
 	)
 
 	// Load and validate CMDB configuration.
-	cmdbConfig, err := cmdb.LoadConfig(cmdbConfigPath)
+	cmdbConfig, err := cmdb.LoadConfig(cmdbConfigPath, env)
 	if err != nil {
 		return fmt.Errorf("failed to load cmdb config: %w", err)
 	}
 
-	// CMDB is always queried in Prod, regardless of runtime deployment env.
-	prodTLSProfile := tlsPaths.ClientProfiles[versions.EnvironmentProd]
-	cmdbConfig.CACertPath = prodTLSProfile.CACert
-	cmdbConfig.ClientCertPath = prodTLSProfile.ClientCert
-	cmdbConfig.ClientKeyPath = prodTLSProfile.ClientKey
+	// APP_ENV=qa switches both the CMDB URL and its client certificate for testing.
+	cmdbTLSProfile := tlsPaths.ClientProfiles[env]
+	cmdbConfig.CACertPath = cmdbTLSProfile.CACert
+	cmdbConfig.ClientCertPath = cmdbTLSProfile.ClientCert
+	cmdbConfig.ClientKeyPath = cmdbTLSProfile.ClientKey
+	logger.Info("CMDB environment selected", "env", env, "url", cmdbConfig.VersionsAPIURL)
 
 	// Create the shared CMDB client.
 	cmdbClient, err := cmdb.NewClient(cmdbConfig)
@@ -113,16 +99,16 @@ func Run() error {
 		return fmt.Errorf("failed to load versions config: %w", err)
 	}
 
-	runtimeProfiles := make(map[string]provider.RuntimeTLSProfile, len(tlsPaths.ClientProfiles))
+	runtimeProfiles := make(map[string]source.RuntimeTLSProfile, len(tlsPaths.ClientProfiles))
 	for profileEnv, profile := range tlsPaths.ClientProfiles {
-		runtimeProfiles[profileEnv] = provider.RuntimeTLSProfile{
+		runtimeProfiles[profileEnv] = source.RuntimeTLSProfile{
 			CACertPath:     profile.CACert,
 			ClientCertPath: profile.ClientCert,
 			ClientKeyPath:  profile.ClientKey,
 		}
 	}
 
-	runtimeSource, err := provider.NewRuntimeSource(0, runtimeProfiles)
+	runtimeSource, err := source.NewRuntimeSource(0, runtimeProfiles)
 	if err != nil {
 		return fmt.Errorf("failed to create runtime source: %w", err)
 	}
@@ -140,7 +126,7 @@ func Run() error {
 	// Initialize the Gin engine and middleware stack.
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(middleware.GinLogger())
+	r.Use(ginLogger())
 
 	if env == "prod" {
 		if err := r.SetTrustedProxies(nil); err != nil {
@@ -172,25 +158,6 @@ func Run() error {
 
 }
 
-// registerRoutes registers all page and API routes for the web service.
-//
-// The API handler shares the long-lived versions service and its client pools.
-func registerRoutes(r *gin.Engine, versionsService *versions.Service) {
-	// Health check.
-	r.GET("/healthz", api.HealthHandler)
-
-	r.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusFound, "/versions")
-	})
-
-	// Product versions.
-	r.GET("/api/versions", api.ListVersionsHandler(versionsService))
-
-	r.GET("/versions", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "versions.html", nil)
-	})
-}
-
 // runTLSServer starts the Gin HTTPS server.
 func runTLSServer(r *gin.Engine, env, certFilePath, keyFilePath string) error {
 	listenAddr := strings.TrimSpace(os.Getenv("APP_LISTEN_ADDR"))
@@ -220,58 +187,7 @@ func resolveConfigDir() string {
 		baseConfigDir = defaultConfigDir
 		logger.Info("APP_CONFIG_DIR not set, using default", "path", baseConfigDir)
 	}
+	logger.Info("APP_CONFIG_DIR set", "path", baseConfigDir)
 
 	return baseConfigDir
-}
-
-// resolveTLSPaths returns the server certificate and both supported outbound
-// client profiles.
-func resolveTLSPaths() (TLSPaths, error) {
-	tlsDir := strings.TrimSpace(os.Getenv("APP_TLS_DIR"))
-	if tlsDir == "" {
-		tlsDir = defaultTLSDir
-	}
-
-	return TLSPaths{
-		ServerCert: filepath.Join(tlsDir, "tls.pem"),
-		ServerKey:  filepath.Join(tlsDir, "tls.key"),
-		ClientProfiles: map[string]ClientTLSPaths{
-			versions.EnvironmentQA: {
-				ClientCert: filepath.Join(tlsDir, "itsm_jsm_qa.pem"),
-				ClientKey:  filepath.Join(tlsDir, "itsm_jsm_qa.key"),
-				CACert:     defaultCACertFile,
-			},
-			versions.EnvironmentProd: {
-				ClientCert: filepath.Join(tlsDir, "itsm_jsm_prod.pem"),
-				ClientKey:  filepath.Join(tlsDir, "itsm_jsm_prod.key"),
-				CACert:     defaultCACertFile,
-			},
-		},
-	}, nil
-}
-
-// validateTLSPaths verifies that every required TLS path is set and accessible.
-func validateTLSPaths(paths TLSPaths) error {
-	checks := map[string]string{
-		"server cert": paths.ServerCert,
-		"server key":  paths.ServerKey,
-	}
-
-	for env, profile := range paths.ClientProfiles {
-		checks[env+" client cert"] = profile.ClientCert
-		checks[env+" client key"] = profile.ClientKey
-		checks[env+" CA cert"] = profile.CACert
-	}
-
-	for name, path := range checks {
-		if strings.TrimSpace(path) == "" {
-			return fmt.Errorf("%s path is empty", name)
-		}
-
-		if _, err := os.Stat(path); err != nil {
-			return fmt.Errorf("%s %q is not accessible: %w", name, path, err)
-		}
-	}
-
-	return nil
 }

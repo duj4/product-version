@@ -29,7 +29,8 @@ async function loadVersions(isRefresh) {
   hideError()
 
   try {
-    const response = await fetch("/api/versions", {
+    const endpoint = isRefresh ? "/api/versions?refresh=true" : "/api/versions"
+    const response = await fetch(endpoint, {
       cache: "no-store",
       headers: {
         Accept: "application/json"

@@ -1,13 +1,13 @@
-package provider
+package source
 
-// CMDBProduct contains the product fields required by the CMDB version provider.
+// CMDBProduct contains the product fields required by the CMDB version source.
 type CMDBProduct struct {
 	Key             string
 	Name            string
 	ApplicationType string
 }
 
-// RuntimeProduct contains the product fields required by the runtime provider.
+// RuntimeProduct contains the product fields required by the runtime source.
 type RuntimeProduct struct {
 	Key  string
 	Env  string
@@ -24,11 +24,10 @@ type RuntimeProduct struct {
 	Mimir RuntimeMimir
 }
 
-// RuntimeMimir contains the product fields required by the Mimir runtime provider.
+// RuntimeMimir contains the product fields required by the Mimir runtime source.
 type RuntimeMimir struct {
 	Endpoint     string
 	Auth         RuntimeAuth
-	Headers      map[string]string
 	Query        string
 	VersionLabel string
 }
@@ -45,7 +44,7 @@ type RuntimeTLSProfile struct {
 	ClientKeyPath  string
 }
 
-// EOLProduct contains the product fields required by the endoflife.date provider.
+// EOLProduct contains the product fields required by the endoflife.date source.
 type EOLProduct struct {
 	Key       string
 	Product   string

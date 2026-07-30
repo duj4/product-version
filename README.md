@@ -24,8 +24,15 @@ The service uses these environment variables:
 
 The service has no PostgreSQL dependency.
 
-CMDB is always queried with the Prod client certificate. Runtime HTTP and Mimir
-requests select the QA or Prod client certificate from their deployment env.
+Version responses are cached in memory for 30 seconds. Concurrent cache misses
+share the same in-flight collection instead of repeating downstream requests.
+The web page's Refresh button calls `/api/versions?refresh=true`, which bypasses
+a valid cache but still joins any collection already in progress.
+
+With the normal `APP_ENV=prod` setting, CMDB uses the Prod URL and client
+certificate. `APP_ENV=qa` switches both to QA for service testing. Runtime HTTP
+and Mimir requests independently select the client certificate from each
+deployment's `env`.
 
 ## Product configuration
 
@@ -72,13 +79,25 @@ products:
       prefer_lts: false
 ```
 
-Every product must define exactly one `qa` and one `prod` runtime deployment.
-A deployment may be present with `enabled: false` while its endpoint is being
-onboarded.
+Every product must define at least one runtime deployment. `qa` and `prod` are
+both optional, but the same environment cannot appear more than once for a
+product. A deployment may be present with `enabled: false` while its endpoint
+is being onboarded.
 
 The API response is organized as `key + metadata + sources`. CMDB and EOL are
 product-level sources; runtime results are returned as
 `sources.runtime.deployments`.
+
+## Project layout
+
+- `cmd/server`: process entry point.
+- `internal/server`: HTTPS startup, TLS paths, middleware, routes, and embedded web assets.
+- `internal/cmdb`: low-level CMDB configuration and API client.
+- `internal/versions`: product configuration, validation, caching, concurrency, and aggregation.
+- `internal/versions/source`: CMDB, runtime/Mimir, and endoflife.date source adapters.
+- `internal/versions/model`: API response model.
+- `internal/httpclient`: shared plain HTTP and mTLS client construction.
+- `config`: runtime configuration, including `products.yaml`, `cmdb.json`, and `proxy`.
 
 ## Build
 

@@ -1,5 +1,8 @@
 {
-  "versions_api_url": "https://cmdb-api.ai.ms.com.cn/api/insight/1/objects",
+  "versions_api_urls": {
+    "qa": "https://cmdb-api-qa.ai.ms.com.cn/api/insight/1/objects",
+    "prod": "https://cmdb-api.ai.ms.com.cn/api/insight/1/objects"
+  },
   "page_size": 100,
   "http_timeout_seconds": 300
 }
