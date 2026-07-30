@@ -71,6 +71,7 @@ function renderDashboard() {
 
 function renderStats() {
   const deployments = loadedProducts.flatMap(runtimeDeployments)
+    .filter(item => item?.status !== "disabled")
   const healthyRuntimes = deployments.filter(item => item?.status === "ok").length
   const attentionProducts = loadedProducts.filter(productHasAttention).length
   const sourceErrors = loadedProducts.reduce((count, product) => count + countSourceErrors(product), 0)
@@ -435,6 +436,7 @@ function productHasAttention(product) {
   if (sources.cmdb?.status === "error" || sources.eol?.status === "error") return true
 
   return runtimeDeployments(product).some(deployment => {
+    if (deployment?.status === "disabled") return false
     if (deployment?.status !== "ok") return true
     const assessment = deployment?.assessment || {}
     return assessment.status === "error" ||
@@ -565,8 +567,9 @@ function setLoadingState(loading) {
   button.disabled = loading
   button.classList.toggle("cursor-wait", loading)
   button.classList.toggle("opacity-70", loading)
-  icon.classList.toggle("spin", loading)
-  label.textContent = loading ? "Refreshing" : "Refresh"
+  button.setAttribute("aria-busy", String(loading))
+  icon.classList.toggle("refresh-once", loading)
+  label.textContent = loading ? "Refreshing…" : "Refresh"
 }
 
 function showToast(message, type) {

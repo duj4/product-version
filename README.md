@@ -20,7 +20,7 @@ The service uses these environment variables:
 - `APP_TLS_DIR`: directory containing `tls.pem`, `tls.key`,
   `itsm_jsm_qa.pem`/`.key`, and `itsm_jsm_prod.pem`/`.key`; defaults to
   `/d/d1/product-version/tls`.
-- `APP_LISTEN_ADDR`: HTTPS listen address; defaults to `:8443`.
+- `APP_PORT`: HTTPS listen port; defaults to `8443`.
 
 The service has no PostgreSQL dependency.
 

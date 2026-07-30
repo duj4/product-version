@@ -59,8 +59,9 @@
       animation: shimmer 1.4s infinite linear;
     }
 
-    .spin {
-      animation: spin 750ms linear infinite;
+    .refresh-once {
+      animation: refresh-once 900ms cubic-bezier(.4, 0, .2, 1) 1;
+      transform-origin: center;
     }
 
     @keyframes shimmer {
@@ -69,7 +70,7 @@
       }
     }
 
-    @keyframes spin {
+    @keyframes refresh-once {
       to {
         transform: rotate(360deg);
       }
@@ -122,7 +123,7 @@
             <div id="lastUpdated" class="mt-0.5 text-sm font-semibold text-slate-100">Waiting for data</div>
           </div>
           <button id="refreshButton" type="button"
-            class="group inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-slate-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-400/30">
+            class="group inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-slate-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-400/30 disabled:cursor-wait disabled:opacity-75 disabled:hover:translate-y-0">
             <svg id="refreshIcon" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 6v5h-5M4 18v-5h5" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M18.2 9A7 7 0 0 0 6 6.8L4 11m16 2-2 4.2A7 7 0 0 1 5.8 15" stroke-linecap="round" stroke-linejoin="round" />
@@ -133,7 +134,7 @@
       </div>
     </section>
 
-    <section class="-mt-1 grid grid-cols-2 gap-3 px-2 pt-5 lg:grid-cols-4">
+    <section class="-mt-1 grid grid-cols-2 gap-3 pt-5 lg:grid-cols-4">
       <article class="stat-card glass-card rounded-2xl border border-white p-4 shadow-sm">
         <div class="flex items-center justify-between">
           <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Products</span>
@@ -170,7 +171,7 @@
           </span>
         </div>
         <div id="attentionStat" class="mt-3 text-3xl font-black tracking-tight text-slate-900">—</div>
-        <p class="mt-1 text-xs text-slate-400">products with signals</p>
+        <p class="mt-1 text-xs text-slate-400">products requiring review</p>
       </article>
 
       <article class="stat-card glass-card rounded-2xl border border-white p-4 shadow-sm">
@@ -206,6 +207,7 @@
           </label>
 
           <select id="statusFilter"
+            title="Source errors, unresolved lifecycle data, EOL versions, CMDB mismatches, or available patches"
             class="h-10 rounded-xl border border-slate-200 bg-white/80 px-3 text-sm font-semibold text-slate-600 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100">
             <option value="all">All products</option>
             <option value="attention">Needs attention</option>

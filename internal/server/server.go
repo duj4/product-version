@@ -22,8 +22,8 @@ import (
 var webFiles embed.FS
 
 const (
-	defaultListenAddr = ":8443"
-	defaultConfigDir  = "/d/d1/product-version/config"
+	defaultPort      = "8443"
+	defaultConfigDir = "/d/d1/product-version/config"
 )
 
 // Run initializes and starts the Product Version web service.
@@ -172,7 +172,8 @@ func Run() error {
 
 // runTLSServer starts the Gin HTTPS server.
 func runTLSServer(r *gin.Engine, env, certFilePath, keyFilePath string) error {
-	listenAddr := resolveListenAddress()
+	port := resolvePort()
+	listenAddr := ":" + port
 
 	logger.Info(
 		"https server starting",
@@ -209,11 +210,11 @@ func resolveAppEnvironment() (string, error) {
 	return env, nil
 }
 
-// resolveListenAddress resolves the HTTPS server listen address.
-func resolveListenAddress() string {
-	listenAddr, source := resolveEnvVarValue("APP_LISTEN_ADDR", defaultListenAddr)
-	logResolvedEnvValue("https listen address resolved", "APP_LISTEN_ADDR", listenAddr, source)
-	return listenAddr
+// resolvePort resolves the HTTPS server port.
+func resolvePort() string {
+	port, source := resolveEnvVarValue("APP_PORT", defaultPort)
+	logResolvedEnvValue("https port resolved", "APP_PORT", port, source)
+	return port
 }
 
 // resolveEnvVarValue returns a trimmed environment variable value or its default.
