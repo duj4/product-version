@@ -15,7 +15,7 @@ func registerRoutes(r *gin.Engine, versionsService *versions.Service) {
 	})
 
 	r.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusFound, "/versions")
+		c.HTML(http.StatusOK, "versions.html", nil)
 	})
 
 	r.GET("/api/versions", func(c *gin.Context) {
@@ -28,6 +28,6 @@ func registerRoutes(r *gin.Engine, versionsService *versions.Service) {
 	})
 
 	r.GET("/versions", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "versions.html", nil)
+		c.Redirect(http.StatusFound, "/")
 	})
 }

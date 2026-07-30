@@ -6,7 +6,8 @@ collects both QA and Prod runtime versions.
 
 ## Routes
 
-- `GET /versions`
+- `GET /`: web UI
+- `GET /versions`: redirects to `/` for backward compatibility
 - `GET /api/versions`
 - `GET /healthz`
 
