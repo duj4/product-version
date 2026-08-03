@@ -24,7 +24,8 @@ const (
 // The limiters are service-scoped, so concurrent API requests share the same
 // outbound concurrency budget rather than multiplying it.
 type Service struct {
-	config *Config
+	config      *Config
+	environment string
 
 	cmdbSource    *source.CMDBSource
 	runtimeSource *source.RuntimeSource
@@ -43,9 +44,10 @@ type Service struct {
 }
 
 // NewService creates the long-lived versions service.
-func NewService(config *Config, cmdbClient *cmdb.Client, runtimeSource *source.RuntimeSource) *Service {
+func NewService(config *Config, cmdbClient *cmdb.Client, runtimeSource *source.RuntimeSource, environment string) *Service {
 	return &Service{
-		config: config,
+		config:      config,
+		environment: environment,
 
 		cmdbSource:    source.NewCMDBSource(cmdbClient),
 		runtimeSource: runtimeSource,
@@ -56,5 +58,18 @@ func NewService(config *Config, cmdbClient *cmdb.Client, runtimeSource *source.R
 		cmdbLimit:    make(chan struct{}, defaultCMDBConcurrency),
 		runtimeLimit: make(chan struct{}, defaultRuntimeConcurrency),
 		eolLimit:     make(chan struct{}, defaultEOLConcurrency),
+	}
+}
+
+// collectsRuntimeEnvironment reports whether this service instance may query
+// runtime deployments in the target environment.
+func (s *Service) collectsRuntimeEnvironment(environment string) bool {
+	switch s.environment {
+	case EnvironmentQA:
+		return environment == EnvironmentQA
+	case EnvironmentProd:
+		return environment == EnvironmentQA || environment == EnvironmentProd
+	default:
+		return false
 	}
 }

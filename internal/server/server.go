@@ -38,7 +38,7 @@ func Run() error {
 	}
 
 	// Resolve TLS assets for the server and outbound client requests.
-	tlsPaths, err := resolveTLSPaths()
+	tlsPaths, err := resolveTLSPaths(env)
 	if err != nil {
 		return err
 	}
@@ -48,6 +48,7 @@ func Run() error {
 	}
 	logger.Info(
 		"tls paths validated",
+		"env", env,
 		"server_cert", tlsPaths.ServerCert,
 		"server_key", tlsPaths.ServerKey,
 		"client_profiles", len(tlsPaths.ClientProfiles),
@@ -75,7 +76,10 @@ func Run() error {
 	}
 
 	// APP_ENV=qa switches both the CMDB URL and its client certificate for testing.
-	cmdbTLSProfile := tlsPaths.ClientProfiles[env]
+	cmdbTLSProfile, exists := tlsPaths.ClientProfiles[env]
+	if !exists {
+		return fmt.Errorf("TLS client profile for CMDB environment %q is not configured", env)
+	}
 	cmdbConfig.CACertPath = cmdbTLSProfile.CACert
 	cmdbConfig.ClientCertPath = cmdbTLSProfile.ClientCert
 	cmdbConfig.ClientKeyPath = cmdbTLSProfile.ClientKey
@@ -121,7 +125,7 @@ func Run() error {
 		return fmt.Errorf("failed to create runtime source: %w", err)
 	}
 
-	versionsService := versions.NewService(versionsConfig, cmdbClient, runtimeSource)
+	versionsService := versions.NewService(versionsConfig, cmdbClient, runtimeSource, env)
 
 	// Set Gin mode before creating the engine.
 	ginMode := gin.DebugMode

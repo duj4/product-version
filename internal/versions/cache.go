@@ -72,7 +72,7 @@ func (s *Service) newErrorResponse(err error) *model.VersionResponse {
 
 	response.Products = make([]model.ProductVersion, len(s.config.Products))
 	for i, product := range s.config.Products {
-		response.Products[i] = newProductErrorResult(product, err)
+		response.Products[i] = s.newProductErrorResult(product, err)
 	}
 
 	return response

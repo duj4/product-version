@@ -30,7 +30,7 @@ func (s *Service) collectResponse(ctx context.Context) *model.VersionResponse {
 			defer wg.Done()
 
 			if err := acquire(ctx, s.productLimit); err != nil {
-				products[index] = newProductErrorResult(product, err)
+				products[index] = s.newProductErrorResult(product, err)
 				return
 			}
 			defer release(s.productLimit)
@@ -48,7 +48,7 @@ func (s *Service) collectResponse(ctx context.Context) *model.VersionResponse {
 // collectProduct fetches independent product sources and runtime deployments
 // concurrently, then performs lightweight in-memory assessments.
 func (s *Service) collectProduct(ctx context.Context, product ProductConfig) model.ProductVersion {
-	result := newProductResult(product)
+	result := s.newProductResult(product)
 
 	var wg sync.WaitGroup
 
@@ -114,7 +114,7 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 	}
 
 	for i, deployment := range product.Runtime.Deployments {
-		if !deployment.Enabled {
+		if !s.collectsRuntimeEnvironment(deployment.Env) || !deployment.Enabled {
 			continue
 		}
 
@@ -178,9 +178,14 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 	return result
 }
 
-func newProductResult(product ProductConfig) model.ProductVersion {
+func (s *Service) newProductResult(product ProductConfig) model.ProductVersion {
 	deployments := make([]model.RuntimeDeploymentResult, len(product.Runtime.Deployments))
 	for i, deployment := range product.Runtime.Deployments {
+		if !s.collectsRuntimeEnvironment(deployment.Env) {
+			reason := fmt.Sprintf("runtime environment %q is not collected when APP_ENV=%s", deployment.Env, s.environment)
+			deployments[i] = model.NewSkippedRuntimeResult(deployment.Env, deployment.Type, reason)
+			continue
+		}
 		deployments[i] = model.NewDisabledRuntimeResult(deployment.Env, deployment.Type)
 	}
 
@@ -200,8 +205,8 @@ func newProductResult(product ProductConfig) model.ProductVersion {
 	}
 }
 
-func newProductErrorResult(product ProductConfig, err error) model.ProductVersion {
-	result := newProductResult(product)
+func (s *Service) newProductErrorResult(product ProductConfig, err error) model.ProductVersion {
+	result := s.newProductResult(product)
 
 	if product.CMDB.Enabled {
 		result.Sources.CMDB = model.NewErrorCMDBResult(err)
@@ -212,7 +217,7 @@ func newProductErrorResult(product ProductConfig, err error) model.ProductVersio
 	}
 
 	for i, deployment := range product.Runtime.Deployments {
-		if !deployment.Enabled {
+		if !s.collectsRuntimeEnvironment(deployment.Env) || !deployment.Enabled {
 			continue
 		}
 		result.Sources.Runtime.Deployments[i] = model.NewErrorRuntimeResult(deployment.Env, deployment.Type, err)

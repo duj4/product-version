@@ -7,6 +7,9 @@ const (
 	// SourceStatusDisabled means the source is disabled in products.yaml.
 	SourceStatusDisabled = "disabled"
 
+	// SourceStatusSkipped means collection is excluded by the service environment.
+	SourceStatusSkipped = "skipped"
+
 	// SourceStatusError means the source failed while the overall response remains available.
 	SourceStatusError = "error"
 
@@ -52,6 +55,7 @@ type RuntimeDeploymentResult struct {
 	Version    string            `json:"version,omitempty"`
 	Candidates []string          `json:"candidates,omitempty"`
 	Error      string            `json:"error,omitempty"`
+	Reason     string            `json:"reason,omitempty"`
 	Assessment VersionAssessment `json:"assessment"`
 }
 
@@ -118,7 +122,8 @@ type VersionAssessment struct {
 	CMDBMismatch   bool `json:"cmdb_mismatch"`
 	PatchAvailable bool `json:"patch_available"`
 
-	Error string `json:"error,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // NewDisabledRuntimeResult creates a disabled runtime deployment result.
@@ -129,6 +134,20 @@ func NewDisabledRuntimeResult(env, runtimeType string) RuntimeDeploymentResult {
 		Status: SourceStatusDisabled,
 		Assessment: VersionAssessment{
 			Status: SourceStatusDisabled,
+		},
+	}
+}
+
+// NewSkippedRuntimeResult creates a runtime result excluded by environment policy.
+func NewSkippedRuntimeResult(env, runtimeType, reason string) RuntimeDeploymentResult {
+	return RuntimeDeploymentResult{
+		Env:    env,
+		Type:   runtimeType,
+		Status: SourceStatusSkipped,
+		Reason: reason,
+		Assessment: VersionAssessment{
+			Status: SourceStatusSkipped,
+			Reason: reason,
 		},
 	}
 }

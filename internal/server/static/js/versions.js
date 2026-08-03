@@ -71,7 +71,7 @@ function renderDashboard() {
 
 function renderStats() {
   const deployments = loadedProducts.flatMap(runtimeDeployments)
-    .filter(item => item?.status !== "disabled")
+    .filter(item => item?.status !== "disabled" && item?.status !== "skipped")
   const healthyRuntimes = deployments.filter(item => item?.status === "ok").length
   const attentionProducts = loadedProducts.filter(productHasAttention).length
   const sourceErrors = loadedProducts.reduce((count, product) => count + countSourceErrors(product), 0)
@@ -211,6 +211,10 @@ function renderRuntime(deployment, env) {
     return sourceError("Missing deployment", `${env.toUpperCase()} deployment is missing from the API response`)
   }
 
+  if (deployment.status === "skipped") {
+    return sourcePlaceholder("Not collected", deployment.reason || `${env.toUpperCase()} runtime is excluded by service environment`)
+  }
+
   if (deployment.status === "disabled") {
     return sourcePlaceholder("Not configured", `${env.toUpperCase()} runtime source is disabled`)
   }
@@ -257,6 +261,10 @@ function renderLifecycleLine(label, assessment = {}, color) {
   const envClasses = color === "sky"
     ? "bg-sky-50 text-sky-700"
     : "bg-violet-50 text-violet-700"
+
+  if (assessment?.status === "skipped") {
+    return lifecycleShell(label, envClasses, "Not collected", "text-slate-400", assessment.reason || "Excluded by service environment")
+  }
 
   if (!assessment || assessment.status === "disabled") {
     return lifecycleShell(label, envClasses, "Not configured", "text-slate-400", "")
@@ -346,6 +354,11 @@ function renderSignals(product, qa, prod) {
   if (eol.status === "error") signals.push(signalBadge("EOL unavailable", "rose", eol.error))
 
   for (const [env, deployment] of [["QA", qa], ["Prod", prod]]) {
+    if (deployment?.status === "skipped") {
+      signals.push(signalBadge(`${env} not collected`, "slate", deployment.reason || "Excluded by service environment"))
+      continue
+    }
+
     if (!deployment || deployment.status === "disabled") {
       signals.push(signalBadge(`${env} not configured`, "slate", "Runtime source is disabled"))
       continue
@@ -436,7 +449,7 @@ function productHasAttention(product) {
   if (sources.cmdb?.status === "error" || sources.eol?.status === "error") return true
 
   return runtimeDeployments(product).some(deployment => {
-    if (deployment?.status === "disabled") return false
+    if (deployment?.status === "disabled" || deployment?.status === "skipped") return false
     if (deployment?.status !== "ok") return true
     const assessment = deployment?.assessment || {}
     return assessment.status === "error" ||

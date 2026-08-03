@@ -29,27 +29,36 @@ type ClientTLSPaths struct {
 	ClientKey  string
 }
 
-// resolveTLSPaths returns the server certificate and both supported outbound
-// client profiles.
-func resolveTLSPaths() (TLSPaths, error) {
+// resolveTLSPaths returns the server certificate and outbound client profiles
+// permitted for the service environment.
+func resolveTLSPaths(env string) (TLSPaths, error) {
 	tlsDir, source := resolveEnvVarValue("APP_TLS_DIR", defaultTLSDir)
 	logResolvedEnvValue("tls directory resolved", "APP_TLS_DIR", tlsDir, source)
 
-	return TLSPaths{
-		ServerCert: filepath.Join(tlsDir, "tls.pem"),
-		ServerKey:  filepath.Join(tlsDir, "tls.key"),
-		ClientProfiles: map[string]ClientTLSPaths{
-			versions.EnvironmentQA: {
-				ClientCert: filepath.Join(tlsDir, "itsm_jsm_qa.pem"),
-				ClientKey:  filepath.Join(tlsDir, "itsm_jsm_qa.key"),
-				CACert:     defaultCACertFile,
-			},
-			versions.EnvironmentProd: {
-				ClientCert: filepath.Join(tlsDir, "itsm_jsm_prod.pem"),
-				ClientKey:  filepath.Join(tlsDir, "itsm_jsm_prod.key"),
-				CACert:     defaultCACertFile,
-			},
+	clientProfiles := map[string]ClientTLSPaths{
+		versions.EnvironmentQA: {
+			ClientCert: filepath.Join(tlsDir, "itsm_jsm_qa.pem"),
+			ClientKey:  filepath.Join(tlsDir, "itsm_jsm_qa.key"),
+			CACert:     defaultCACertFile,
 		},
+	}
+
+	switch env {
+	case versions.EnvironmentQA:
+	case versions.EnvironmentProd:
+		clientProfiles[versions.EnvironmentProd] = ClientTLSPaths{
+			ClientCert: filepath.Join(tlsDir, "itsm_jsm_prod.pem"),
+			ClientKey:  filepath.Join(tlsDir, "itsm_jsm_prod.key"),
+			CACert:     defaultCACertFile,
+		}
+	default:
+		return TLSPaths{}, fmt.Errorf("unsupported TLS environment %q", env)
+	}
+
+	return TLSPaths{
+		ServerCert:     filepath.Join(tlsDir, "tls.pem"),
+		ServerKey:      filepath.Join(tlsDir, "tls.key"),
+		ClientProfiles: clientProfiles,
 	}, nil
 }
 
