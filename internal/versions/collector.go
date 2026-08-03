@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"product-version/internal/logger"
 	"product-version/internal/versions/model"
@@ -15,6 +16,9 @@ func (s *Service) collectResponse(ctx context.Context) *model.VersionResponse {
 	resp := &model.VersionResponse{
 		Products: []model.ProductVersion{},
 	}
+	defer func() {
+		resp.CollectedAt = time.Now().UTC().Format(time.RFC3339)
+	}()
 
 	if s.config == nil || len(s.config.Products) == 0 {
 		return resp
@@ -57,6 +61,7 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 		go func() {
 			defer wg.Done()
 
+			startedAt := time.Now()
 			err := withLimit(ctx, s.cmdbLimit, func() error {
 				cmdbResult, err := s.cmdbSource.Fetch(ctx, source.CMDBProduct{
 					Key:             product.Key,
@@ -70,15 +75,25 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 				result.Sources.CMDB = cmdbResult
 				return nil
 			})
+			durationMS := time.Since(startedAt).Milliseconds()
 			if err != nil {
 				logger.Error(
 					"version source collection failed",
 					"product_key", product.Key,
 					"source", "cmdb",
+					"duration_ms", durationMS,
 					"error", err,
 				)
 				result.Sources.CMDB = model.NewErrorCMDBResult(err)
+				return
 			}
+
+			logger.Info(
+				"version source collection completed",
+				"product_key", product.Key,
+				"source", "cmdb",
+				"duration_ms", durationMS,
+			)
 		}()
 	}
 
@@ -87,8 +102,10 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 		go func() {
 			defer wg.Done()
 
+			startedAt := time.Now()
+			cacheHit := false
 			err := withLimit(ctx, s.eolLimit, func() error {
-				eolResult, err := s.eolSource.Fetch(ctx, source.EOLProduct{
+				eolResult, hit, err := s.fetchEOL(ctx, source.EOLProduct{
 					Key:       product.Key,
 					Product:   product.EOL.Product,
 					PreferLTS: product.EOL.PreferLTS,
@@ -97,19 +114,33 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 					return err
 				}
 
+				cacheHit = hit
 				result.Sources.EOL = eolResult
 				return nil
 			})
+			durationMS := time.Since(startedAt).Milliseconds()
 			if err != nil {
 				logger.Error(
 					"version source collection failed",
 					"product_key", product.Key,
 					"source", "eol",
 					"eol_product", product.EOL.Product,
+					"cache_hit", cacheHit,
+					"duration_ms", durationMS,
 					"error", err,
 				)
 				result.Sources.EOL = model.NewErrorEOLResult(err)
+				return
 			}
+
+			logger.Info(
+				"version source collection completed",
+				"product_key", product.Key,
+				"source", "eol",
+				"eol_product", product.EOL.Product,
+				"cache_hit", cacheHit,
+				"duration_ms", durationMS,
+			)
 		}()
 	}
 
@@ -122,6 +153,7 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 		go func(index int, deployment RuntimeDeploymentConfig) {
 			defer wg.Done()
 
+			startedAt := time.Now()
 			err := withLimit(ctx, s.runtimeLimit, func() error {
 				if s.runtimeSource == nil {
 					return fmt.Errorf("runtime source is not configured")
@@ -135,6 +167,7 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 				result.Sources.Runtime.Deployments[index] = runtimeResult
 				return nil
 			})
+			durationMS := time.Since(startedAt).Milliseconds()
 			if err != nil {
 				endpoint := deployment.Endpoint
 				if deployment.Type == RuntimeTypeMimir {
@@ -148,6 +181,7 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 					"source", "runtime",
 					"runtime_type", deployment.Type,
 					"endpoint", endpoint,
+					"duration_ms", durationMS,
 					"error", err,
 				)
 				result.Sources.Runtime.Deployments[index] = model.NewErrorRuntimeResult(
@@ -155,7 +189,17 @@ func (s *Service) collectProduct(ctx context.Context, product ProductConfig) mod
 					deployment.Type,
 					err,
 				)
+				return
 			}
+
+			logger.Info(
+				"version source collection completed",
+				"product_key", product.Key,
+				"env", deployment.Env,
+				"source", "runtime",
+				"runtime_type", deployment.Type,
+				"duration_ms", durationMS,
+			)
 		}(i, deployment)
 	}
 

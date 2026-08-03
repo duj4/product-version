@@ -19,7 +19,8 @@ const (
 
 // VersionResponse is the response returned by GET /api/versions.
 type VersionResponse struct {
-	Products []ProductVersion `json:"products"`
+	CollectedAt string           `json:"collected_at,omitempty"`
+	Products    []ProductVersion `json:"products"`
 }
 
 // ProductVersion represents the aggregated version view for one product.

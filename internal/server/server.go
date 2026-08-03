@@ -126,6 +126,8 @@ func Run() error {
 	}
 
 	versionsService := versions.NewService(versionsConfig, cmdbClient, runtimeSource, env)
+	logger.Info("version cache warmup started")
+	versionsService.WarmCache()
 
 	// Set Gin mode before creating the engine.
 	ginMode := gin.DebugMode

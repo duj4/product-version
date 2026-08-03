@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"product-version/internal/logger"
 	"product-version/internal/versions/model"
 )
 
@@ -23,8 +24,22 @@ func (s *Service) list(ctx context.Context, forceRefresh bool) *model.VersionRes
 	for {
 		now := time.Now()
 		s.cacheMu.Lock()
-		if allowCached && s.cachedResponse != nil && now.Before(s.cacheExpiresAt) {
+
+		if allowCached && s.cachedResponse != nil {
 			response := s.cachedResponse
+			if now.Before(s.cacheExpiresAt) {
+				s.cacheMu.Unlock()
+				return response
+			}
+
+			if s.refreshDone == nil {
+				done := make(chan struct{})
+				s.refreshDone = done
+				s.cacheMu.Unlock()
+				go s.refreshInBackground(done, "stale")
+				return response
+			}
+
 			s.cacheMu.Unlock()
 			return response
 		}
@@ -45,25 +60,65 @@ func (s *Service) list(ctx context.Context, forceRefresh bool) *model.VersionRes
 		done := make(chan struct{})
 		s.refreshDone = done
 		s.cacheMu.Unlock()
-
-		response := s.collectResponse(ctx)
-
-		s.cacheMu.Lock()
-		if ctx.Err() == nil && s.cacheTTL > 0 {
-			s.cachedResponse = response
-			s.cacheExpiresAt = time.Now().Add(s.cacheTTL)
-		}
-		close(done)
-		s.refreshDone = nil
-		s.cacheMu.Unlock()
-
-		return response
+		return s.collectAndStore(ctx, done)
 	}
+}
+
+// WarmCache starts one asynchronous collection when the service cache is empty.
+func (s *Service) WarmCache() {
+	s.cacheMu.Lock()
+	if s.cachedResponse != nil || s.refreshDone != nil {
+		s.cacheMu.Unlock()
+		return
+	}
+
+	done := make(chan struct{})
+	s.refreshDone = done
+	s.cacheMu.Unlock()
+
+	go s.refreshInBackground(done, "warmup")
+}
+
+func (s *Service) refreshInBackground(done chan struct{}, trigger string) {
+	startedAt := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultSourceTimeout+5*time.Second)
+	defer cancel()
+
+	s.collectAndStore(ctx, done)
+
+	args := []any{
+		"trigger", trigger,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+	}
+	if err := ctx.Err(); err != nil {
+		logger.Warn("version cache background refresh failed", append(args, "error", err)...)
+		return
+	}
+
+	logger.Info("version cache background refresh completed", args...)
+}
+
+func (s *Service) collectAndStore(ctx context.Context, done chan struct{}) *model.VersionResponse {
+	response := s.collectResponse(ctx)
+
+	s.cacheMu.Lock()
+	if ctx.Err() == nil && s.cacheTTL > 0 {
+		s.cachedResponse = response
+		s.cacheExpiresAt = time.Now().Add(s.cacheTTL)
+	}
+	close(done)
+	if s.refreshDone == done {
+		s.refreshDone = nil
+	}
+	s.cacheMu.Unlock()
+
+	return response
 }
 
 func (s *Service) newErrorResponse(err error) *model.VersionResponse {
 	response := &model.VersionResponse{
-		Products: []model.ProductVersion{},
+		CollectedAt: time.Now().UTC().Format(time.RFC3339),
+		Products:    []model.ProductVersion{},
 	}
 
 	if s.config == nil {

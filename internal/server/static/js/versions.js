@@ -1,4 +1,5 @@
 let loadedProducts = []
+let loadedCollectedAt = ""
 let isLoading = false
 let pendingRenderFrame = 0
 
@@ -43,6 +44,7 @@ async function loadVersions(isRefresh) {
     }
 
     loadedProducts = Array.isArray(data?.products) ? data.products : []
+    loadedCollectedAt = String(data?.collected_at || "")
     renderDashboard()
 
     if (isRefresh) {
@@ -62,11 +64,15 @@ async function loadVersions(isRefresh) {
 function renderDashboard() {
   renderStats()
   renderProductTable()
+  const collectedAt = new Date(loadedCollectedAt)
+  const displayTime = Number.isNaN(collectedAt.getTime()) ? new Date() : collectedAt
   document.getElementById("lastUpdated").textContent = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
-  }).format(new Date())
+  }).format(displayTime)
 }
 
 function renderStats() {
@@ -144,7 +150,7 @@ function renderProductRow(product) {
         ${escapeHtml(initial)}
       </div>
       <div class="min-w-0">
-        <div class="truncate font-bold text-slate-900" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+        <div class="max-w-[195px] break-words font-bold leading-5 text-slate-900" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
         <div class="mt-1 flex flex-wrap items-center gap-1.5">
           <span class="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-500">${escapeHtml(product?.key || "-")}</span>
           <span class="rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600">${escapeHtml(metadata.application_type || "unknown")}</span>
@@ -310,14 +316,10 @@ function renderLifecycleLine(label, assessment = {}, color) {
       <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <span class="text-[10px] font-bold ${stateClasses}">${escapeHtml(state)}</span>
         ${assessment.eol_from
-          ? `<span class="text-[9px] font-semibold text-rose-500">EOL from ${escapeHtml(assessment.eol_from)}</span>`
+          ? `<span class="text-[9px] font-semibold ${assessment.is_eol ? "text-rose-500" : "text-amber-600"}">EOL from ${escapeHtml(assessment.eol_from)}</span>`
           : ""}
       </div>
     </div>
-  </div>
-  <div class="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
-    ${lifecycleDatum("Cycle released", assessment.current_cycle_release_date)}
-    ${lifecycleDatum("Latest patch", assessment.latest_in_current_cycle, assessment.latest_in_current_cycle_date)}
   </div>
 </div>
 `
@@ -435,7 +437,7 @@ function renderReleaseCycle(cycle = {}, eol = {}, deployments = []) {
     ${lifecycleDatum("Latest released", cycle.latest_date)}
   </div>
   ${cycle.eol_from
-    ? `<div class="mt-2 text-[9px] font-semibold text-rose-500">EOL from ${escapeHtml(cycle.eol_from)}</div>`
+    ? `<div class="mt-2 text-[9px] font-semibold ${cycle.is_eol ? "text-rose-500" : "text-amber-600"}">EOL from ${escapeHtml(cycle.eol_from)}</div>`
     : ""}
 </div>
 `

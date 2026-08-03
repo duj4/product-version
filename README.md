@@ -26,10 +26,15 @@ The service uses these environment variables:
 
 The service has no PostgreSQL dependency.
 
-Version responses are cached in memory for 30 seconds. Concurrent cache misses
-share the same in-flight collection instead of repeating downstream requests.
-The web page's Refresh button calls `/api/versions?refresh=true`, which bypasses
-a valid cache but still joins any collection already in progress.
+Version responses remain fresh in memory for 30 seconds. The cache is warmed
+asynchronously during startup. After expiry, a normal page load returns the last
+response immediately and starts one shared background refresh, so concurrent
+users do not multiply downstream requests or wait for them. The web page's
+Refresh button calls `/api/versions?refresh=true`; it waits for fresh CMDB and
+runtime results while joining any collection already in progress.
+
+Successful endoflife.date responses have a separate six-hour in-memory cache.
+API responses include `collected_at`, which the web page displays as data time.
 
 With `APP_ENV=qa`, CMDB uses the QA URL and client certificate, and Prod runtime
 deployments are skipped before any outbound request. With `APP_ENV=prod`, CMDB
