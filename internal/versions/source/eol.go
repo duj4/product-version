@@ -75,6 +75,7 @@ func (s *EOLSource) Fetch(ctx context.Context, product EOLProduct) (model.EOLRes
 	result := model.EOLResult{
 		Status:             model.SourceStatusOK,
 		Product:            body.Result.Name,
+		PreferLTS:          product.PreferLTS,
 		LatestOverall:      latestOverall,
 		LatestOverallCycle: latestOverallCycle,
 		LatestOverallIsLTS: latestOverallIsLTS,

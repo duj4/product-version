@@ -77,6 +77,9 @@ type EOLResult struct {
 	// Product is the endoflife.date product name, such as "jira-software" or "grafana-loki".
 	Product string `json:"product,omitempty"`
 
+	// PreferLTS indicates that latest-release selection is limited to LTS cycles.
+	PreferLTS bool `json:"prefer_lts"`
+
 	// LatestOverall is the latest release selected by the product's EOL policy.
 	// If prefer_lts=true, it is the latest release among LTS cycles only.
 	// If prefer_lts=false, it is the latest release across all cycles.

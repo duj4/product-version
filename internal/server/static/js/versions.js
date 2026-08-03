@@ -156,7 +156,7 @@ function renderProductRow(product) {
   <td class="px-4 py-5">${renderRuntime(qa, "qa")}</td>
   <td class="px-4 py-5">${renderRuntime(prod, "prod")}</td>
   <td class="px-4 py-5">${renderLifecycle(qa, prod)}</td>
-  <td class="px-4 py-5">${renderLatestOverall(sources.eol)}</td>
+  <td class="px-4 py-5">${renderReleaseContext(sources.eol, qa, prod)}</td>
   <td class="px-4 py-5">${renderSignals(product, qa, prod)}</td>
 </tr>
 `
@@ -291,20 +291,44 @@ function renderLifecycleLine(label, assessment = {}, color) {
       : "text-slate-500"
   const title = [
     assessment.current_cycle_label || assessment.current_cycle,
+    assessment.current_cycle_release_date ? `Released ${assessment.current_cycle_release_date}` : "",
     assessment.eol_from ? `EOL from ${assessment.eol_from}` : "",
-    assessment.latest_in_current_cycle ? `Latest ${assessment.latest_in_current_cycle}` : ""
+    assessment.latest_in_current_cycle
+      ? `Latest ${assessment.latest_in_current_cycle}${assessment.latest_in_current_cycle_date ? ` on ${assessment.latest_in_current_cycle_date}` : ""}`
+      : ""
   ].filter(Boolean).join(" · ")
 
   return `
-<div class="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/70 px-2.5 py-2" title="${escapeHtml(title)}">
-  <span class="w-9 shrink-0 rounded-md px-1.5 py-1 text-center text-[9px] font-black uppercase tracking-wider ${envClasses}">${label}</span>
-  <div class="min-w-0">
-    <div class="flex items-center gap-1.5">
-      <span class="font-mono text-xs font-black text-slate-800">${escapeHtml(assessment.current_cycle || "-")}</span>
-      ${assessment.is_lts ? `<span class="rounded bg-purple-50 px-1 py-0.5 text-[8px] font-black text-purple-600">LTS</span>` : ""}
+<div class="rounded-xl border border-slate-100 bg-white/70 px-2.5 py-2.5" title="${escapeHtml(title)}">
+  <div class="flex items-start gap-2">
+    <span class="w-9 shrink-0 rounded-md px-1.5 py-1 text-center text-[9px] font-black uppercase tracking-wider ${envClasses}">${label}</span>
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="font-mono text-xs font-black text-slate-800">${escapeHtml(assessment.current_cycle || "-")}</span>
+        ${assessment.is_lts ? `<span class="rounded bg-purple-50 px-1 py-0.5 text-[8px] font-black text-purple-600">LTS</span>` : ""}
+      </div>
+      <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span class="text-[10px] font-bold ${stateClasses}">${escapeHtml(state)}</span>
+        ${assessment.eol_from
+          ? `<span class="text-[9px] font-semibold text-rose-500">EOL from ${escapeHtml(assessment.eol_from)}</span>`
+          : ""}
+      </div>
     </div>
-    <div class="mt-0.5 text-[10px] font-bold ${stateClasses}">${escapeHtml(state)}</div>
   </div>
+  <div class="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
+    ${lifecycleDatum("Cycle released", assessment.current_cycle_release_date)}
+    ${lifecycleDatum("Latest patch", assessment.latest_in_current_cycle, assessment.latest_in_current_cycle_date)}
+  </div>
+</div>
+`
+}
+
+function lifecycleDatum(label, value, detail = "") {
+  return `
+<div class="min-w-0">
+  <div class="text-[8px] font-black uppercase tracking-wider text-slate-400">${label}</div>
+  <div class="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-600">${escapeHtml(value || "-")}</div>
+  ${detail ? `<div class="truncate text-[9px] text-slate-400">${escapeHtml(detail)}</div>` : ""}
 </div>
 `
 }
@@ -318,7 +342,7 @@ function lifecycleShell(label, envClasses, value, valueClasses, title) {
 `
 }
 
-function renderLatestOverall(eol = {}) {
+function renderReleaseContext(eol = {}, qa, prod) {
   if (eol.status === "disabled") {
     return sourcePlaceholder("Not configured", "EOL source is disabled")
   }
@@ -327,19 +351,91 @@ function renderLatestOverall(eol = {}) {
     return sourceError("Unavailable", eol.error)
   }
 
+  const deployments = [qa, prod]
+  const cycles = relevantEOLCycles(eol, deployments)
+  if (cycles.length === 0) {
+    return sourcePlaceholder("No release data", "No matching release cycles were returned")
+  }
+
+  return `<div class="space-y-2">${cycles.map(cycle => renderReleaseCycle(cycle, eol, deployments)).join("")}</div>`
+}
+
+function relevantEOLCycles(eol, deployments) {
+  const catalog = Array.isArray(eol?.cycles) ? eol.cycles : []
+  const byCycle = new Map(catalog.map(cycle => [String(cycle?.cycle || "").trim(), cycle]))
+  const selected = []
+  const seen = new Set()
+
+  const addCycle = cycleName => {
+    const normalized = String(cycleName || "").trim()
+    if (!normalized || seen.has(normalized)) return
+
+    const cycle = byCycle.get(normalized)
+    if (cycle) {
+      selected.push(cycle)
+      seen.add(normalized)
+      return
+    }
+
+    if (normalized === String(eol?.latest_overall_cycle || "").trim()) {
+      selected.push({
+        cycle: normalized,
+        is_lts: eol?.latest_overall_is_lts === true,
+        latest: eol?.latest_overall,
+        latest_date: eol?.latest_overall_date
+      })
+      seen.add(normalized)
+    }
+  }
+
+  addCycle(eol?.latest_overall_cycle)
+
+  if (eol?.prefer_lts === true) {
+    catalog
+      .filter(cycle => cycle?.is_lts === true && cycle?.is_maintained === true)
+      .forEach(cycle => addCycle(cycle?.cycle))
+  }
+
+  deployments.forEach(deployment => addCycle(deployment?.assessment?.current_cycle))
+  return selected
+}
+
+function renderReleaseCycle(cycle = {}, eol = {}, deployments = []) {
+  const cycleName = String(cycle.cycle || "").trim()
+  const isLatest = cycleName !== "" && cycleName === String(eol.latest_overall_cycle || "").trim()
+  const environments = deployments
+    .filter(deployment => String(deployment?.assessment?.current_cycle || "").trim() === cycleName)
+    .map(deployment => String(deployment?.env || "").toUpperCase())
+
+  const state = cycle.is_eol
+    ? "EOL"
+    : cycle.is_maintained
+      ? "Maintained"
+      : ""
+  const stateClasses = cycle.is_eol ? "text-rose-600" : "text-emerald-600"
+
   return `
-<div class="space-y-1.5">
+<div class="rounded-xl border border-slate-100 bg-white/70 px-2.5 py-2.5">
   <div class="flex flex-wrap items-center gap-1.5">
-    <span class="font-mono text-base font-black text-slate-900">${escapeHtml(eol.latest_overall || "-")}</span>
-    ${eol.latest_overall_is_lts
-      ? `<span class="rounded-md bg-purple-50 px-1.5 py-0.5 text-[9px] font-black text-purple-600">LTS</span>`
+    <span class="font-mono text-xs font-black text-slate-800">Cycle ${escapeHtml(cycleName || "-")}</span>
+    ${cycle.is_lts
+      ? `<span class="rounded bg-purple-50 px-1 py-0.5 text-[8px] font-black text-purple-600">LTS</span>`
       : ""}
+    ${isLatest
+      ? `<span class="rounded bg-blue-50 px-1 py-0.5 text-[8px] font-black uppercase text-blue-600">Latest</span>`
+      : ""}
+    ${environments.map(env => `<span class="rounded bg-slate-100 px-1 py-0.5 text-[8px] font-black text-slate-500">${escapeHtml(env)}</span>`).join("")}
   </div>
-  <div class="text-[11px] text-slate-400">
-    ${eol.latest_overall_cycle ? `Cycle ${escapeHtml(eol.latest_overall_cycle)}` : "Cycle unavailable"}
+  <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+    <span class="font-mono text-sm font-black text-slate-900">${escapeHtml(cycle.latest || "-")}</span>
+    ${state ? `<span class="text-[9px] font-bold ${stateClasses}">${escapeHtml(state)}</span>` : ""}
   </div>
-  ${eol.latest_overall_date
-    ? `<div class="text-[10px] font-semibold text-slate-400">${escapeHtml(eol.latest_overall_date)}</div>`
+  <div class="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
+    ${lifecycleDatum("Cycle released", cycle.release_date)}
+    ${lifecycleDatum("Latest released", cycle.latest_date)}
+  </div>
+  ${cycle.eol_from
+    ? `<div class="mt-2 text-[9px] font-semibold text-rose-500">EOL from ${escapeHtml(cycle.eol_from)}</div>`
     : ""}
 </div>
 `
@@ -481,6 +577,16 @@ function productSearchText(product) {
     ...(Array.isArray(item?.candidates) ? item.candidates : [])
   ])
 
+  const eolCycleValues = (Array.isArray(sources.eol?.cycles) ? sources.eol.cycles : [])
+    .flatMap(cycle => [
+      cycle?.cycle,
+      cycle?.label,
+      cycle?.latest,
+      cycle?.release_date,
+      cycle?.latest_date,
+      cycle?.eol_from
+    ])
+
   return [
     product?.key,
     metadata.display_name,
@@ -488,6 +594,7 @@ function productSearchText(product) {
     sources.cmdb?.version,
     sources.eol?.product,
     sources.eol?.latest_overall,
+    ...eolCycleValues,
     ...runtimeValues
   ].map(normalizeText).join(" ")
 }

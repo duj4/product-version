@@ -91,6 +91,12 @@ The API response is organized as `key + metadata + sources`. CMDB and EOL are
 product-level sources; runtime results are returned as
 `sources.runtime.deployments`.
 
+The EOL source exposes its `prefer_lts` policy and the complete release-cycle
+catalog. Each cycle includes its initial release date, latest patch and patch
+release date, maintenance state, and EOL date when available. The web release
+context highlights the policy-selected latest cycle, maintained LTS cycles, and
+cycles currently used by QA or Prod.
+
 ## Project layout
 
 - `cmd/server`: process entry point.
