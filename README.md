@@ -27,14 +27,16 @@ The service uses these environment variables:
 The service has no PostgreSQL dependency.
 
 Version responses remain fresh in memory for 30 seconds. The cache is warmed
-asynchronously during startup. After expiry, a normal page load returns the last
-response immediately and starts one shared background refresh, so concurrent
-users do not multiply downstream requests or wait for them. The web page's
-Refresh button calls `/api/versions?refresh=true`; it waits for fresh CMDB and
-runtime results while joining any collection already in progress.
+asynchronously during startup. After expiry, the first request starts a refresh
+and waits for it; concurrent requests join that same collection rather than
+multiplying downstream traffic. If the collection times out, the last cached
+response is returned as a fallback. The web page's Refresh button calls
+`/api/versions?refresh=true`, which also refreshes a still-valid aggregate cache
+while joining any collection already in progress.
 
 Successful endoflife.date responses have a separate six-hour in-memory cache.
 API responses include `collected_at`, which the web page displays as data time.
+A fallback keeps the timestamp of the last successfully completed collection.
 
 With `APP_ENV=qa`, CMDB uses the QA URL and client certificate, and Prod runtime
 deployments are skipped before any outbound request. With `APP_ENV=prod`, CMDB

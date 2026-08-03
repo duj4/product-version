@@ -64,15 +64,26 @@ async function loadVersions(isRefresh) {
 function renderDashboard() {
   renderStats()
   renderProductTable()
+  renderCollectedAt()
+}
+
+function renderCollectedAt() {
+  const element = document.getElementById("lastUpdated")
   const collectedAt = new Date(loadedCollectedAt)
-  const displayTime = Number.isNaN(collectedAt.getTime()) ? new Date() : collectedAt
-  document.getElementById("lastUpdated").textContent = new Intl.DateTimeFormat(undefined, {
+  if (!loadedCollectedAt || Number.isNaN(collectedAt.getTime())) {
+    element.textContent = "Unavailable"
+    element.removeAttribute("title")
+    return
+  }
+
+  element.textContent = new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
-  }).format(displayTime)
+  }).format(collectedAt)
+  element.title = "Collected " + collectedAt.toLocaleString()
 }
 
 function renderStats() {

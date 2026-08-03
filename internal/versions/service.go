@@ -46,7 +46,7 @@ type Service struct {
 	cacheMu        sync.Mutex
 	cachedResponse *model.VersionResponse
 	cacheExpiresAt time.Time
-	refreshDone    chan struct{}
+	refresh        *refreshState
 
 	productLimit chan struct{}
 	cmdbLimit    chan struct{}
