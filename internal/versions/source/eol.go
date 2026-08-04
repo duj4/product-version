@@ -267,9 +267,40 @@ func findEOLCycle(cycles []model.EOLCycle, cycle string) (model.EOLCycle, bool) 
 	return model.EOLCycle{}, false
 }
 
+// normalizeVersionForComparison removes presentation, build metadata, and
+// packaging qualifiers without discarding meaningful prerelease labels.
+func normalizeVersionForComparison(version string) string {
+	version = strings.TrimSpace(version)
+	if len(version) > 1 && (version[0] == 'v' || version[0] == 'V') && version[1] >= '0' && version[1] <= '9' {
+		version = version[1:]
+	}
+	if suffix := strings.IndexByte(version, '+'); suffix > 0 {
+		version = version[:suffix]
+	}
+	if suffixAt := strings.IndexByte(version, '-'); suffixAt > 0 {
+		suffix := strings.ToLower(strings.TrimSpace(version[suffixAt+1:]))
+		if !isPrereleaseQualifier(suffix) {
+			version = version[:suffixAt]
+		}
+	}
+	return version
+}
+
+func isPrereleaseQualifier(suffix string) bool {
+	for _, prefix := range []string{
+		"alpha", "beta", "rc", "pre", "preview", "dev",
+		"snapshot", "milestone", "ea", "canary", "nightly",
+	} {
+		if strings.HasPrefix(suffix, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func versionsDiffer(cmdbVersion, runtimeVersion string) bool {
-	cmdbVersion = strings.TrimSpace(cmdbVersion)
-	runtimeVersion = strings.TrimSpace(runtimeVersion)
+	cmdbVersion = normalizeVersionForComparison(cmdbVersion)
+	runtimeVersion = normalizeVersionForComparison(runtimeVersion)
 	if cmdbVersion == "" || runtimeVersion == "" {
 		return false
 	}

@@ -194,16 +194,36 @@ function renderCMDB(cmdb = {}) {
   return `
 <div class="space-y-2">
   <div class="flex items-center gap-2">
-    <span class="font-mono text-base font-black text-slate-900">${escapeHtml(primary)}</span>
+    <span class="shrink-0 whitespace-nowrap font-mono text-base font-black text-slate-900">${escapeHtml(primary)}</span>
     ${sourceStatusPill("ok")}
   </div>
   ${versions.length > 1
     ? `<div class="space-y-1">${versions.slice(0, 3).map(renderCMDBVersion).join("")}</div>`
     : versions.length === 1
-      ? `<div class="text-[11px] text-slate-400">${escapeHtml(versions[0]?.lifecycle_state || "")}</div>`
+      ? renderPrimaryCMDBLifecycle(versions[0]?.lifecycle_state)
       : ""}
 </div>
 `
+}
+
+function renderPrimaryCMDBLifecycle(state) {
+  const value = String(state || "").trim()
+  const normalized = normalizeText(value)
+  const badgeClasses = normalized === "general availability"
+    ? "bg-emerald-50 text-emerald-700"
+    : normalized === "end of life"
+      ? "bg-rose-50 text-rose-700"
+      : ""
+
+  if (badgeClasses) {
+    return `
+<div>
+  <span class="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-bold ${badgeClasses}">${escapeHtml(shortLifecycle(value))}</span>
+</div>
+`
+  }
+
+  return `<div class="text-[11px] text-slate-400">${escapeHtml(value)}</div>`
 }
 
 function renderCMDBVersion(item = {}) {
@@ -520,7 +540,7 @@ function signalBadge(text, color, title) {
 
 function sourceStatusPill(status) {
   if (status !== "ok") return ""
-  return `<span class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600">Registered</span>`
+  return `<span class="shrink-0 whitespace-nowrap rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600">Registered</span>`
 }
 
 function sourcePlaceholder(label, title) {
