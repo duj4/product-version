@@ -20,6 +20,9 @@ const (
 	// AuthTypeMTLS means the runtime version endpoint requires mutual TLS.
 	AuthTypeMTLS = "mtls"
 
+	// AuthTypeKerberos means the runtime endpoint requires Kerberos SPNEGO.
+	AuthTypeKerberos = "kerberos"
+
 	// RuntimeTypeHTTP means the runtime version is fetched from a product HTTP endpoint.
 	RuntimeTypeHTTP = "http"
 

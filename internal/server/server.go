@@ -120,7 +120,8 @@ func Run() error {
 		}
 	}
 
-	runtimeSource, err := source.NewRuntimeSource(0, runtimeProfiles)
+	kerberosProfiles := resolveRuntimeKerberosProfiles(env)
+	runtimeSource, err := source.NewRuntimeSource(0, runtimeProfiles, kerberosProfiles)
 	if err != nil {
 		return fmt.Errorf("failed to create runtime source: %w", err)
 	}

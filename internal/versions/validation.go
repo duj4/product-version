@@ -222,6 +222,8 @@ func normalizeAndValidate(auth *AuthConfig, productKey, fieldPath, defaultType s
 		// No additional validation is required.
 	case AuthTypeMTLS:
 		// Certificate paths are selected centrally from the deployment env.
+	case AuthTypeKerberos:
+		// The environment selects a lazily loaded keytab profile at request time.
 	default:
 		return fmt.Errorf("product %q %s.type %q is not supported", productKey, fieldPath, auth.Type)
 	}

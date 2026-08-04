@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	runtimeAuthTypeNone = "none"
-	runtimeAuthTypeMTLS = "mtls"
+	runtimeAuthTypeNone     = "none"
+	runtimeAuthTypeKerberos = "kerberos"
+	runtimeAuthTypeMTLS     = "mtls"
 
 	runtimeTypeHTTP  = "http"
 	runtimeTypeMimir = "mimir"
@@ -28,11 +29,12 @@ const (
 type RuntimeSource struct {
 	plainClient *http.Client
 	mtlsClients map[string]*http.Client
+	kerberos    *kerberosClientPool
 }
 
-// NewRuntimeSource creates a runtime source with reusable plain and
-// environment-specific mTLS HTTP clients.
-func NewRuntimeSource(timeout time.Duration, profiles map[string]RuntimeTLSProfile) (*RuntimeSource, error) {
+// NewRuntimeSource creates a runtime source with reusable plain, mTLS, and
+// lazily initialized environment-specific Kerberos HTTP clients.
+func NewRuntimeSource(timeout time.Duration, profiles map[string]RuntimeTLSProfile, kerberosProfiles map[string]RuntimeKerberosProfile) (*RuntimeSource, error) {
 	if timeout <= 0 {
 		timeout = defaultRuntimeTimeout
 	}
@@ -40,6 +42,7 @@ func NewRuntimeSource(timeout time.Duration, profiles map[string]RuntimeTLSProfi
 	source := &RuntimeSource{
 		plainClient: httpclient.NewClient(timeout),
 		mtlsClients: make(map[string]*http.Client, len(profiles)),
+		kerberos:    newKerberosClientPool(timeout, kerberosProfiles),
 	}
 
 	for env, profile := range profiles {
@@ -85,6 +88,9 @@ func (s *RuntimeSource) fetchHTTP(ctx context.Context, product RuntimeProduct) (
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		return model.RuntimeDeploymentResult{}, fmt.Errorf("product %q failed to query runtime endpoint: %w", product.Key, err)
 	}
 	defer resp.Body.Close()
@@ -135,6 +141,9 @@ func (s *RuntimeSource) fetchMimir(ctx context.Context, product RuntimeProduct) 
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		return model.RuntimeDeploymentResult{}, fmt.Errorf("product %q failed to query Mimir: %w", product.Key, err)
 	}
 	defer resp.Body.Close()
@@ -174,7 +183,7 @@ func (s *RuntimeSource) fetchMimir(ctx context.Context, product RuntimeProduct) 
 }
 
 // clientFor returns a reusable runtime HTTP client for the auth type and env.
-func (s *RuntimeSource) clientFor(env string, auth RuntimeAuth) (*http.Client, error) {
+func (s *RuntimeSource) clientFor(env string, auth RuntimeAuth) (runtimeHTTPClient, error) {
 	switch auth.Type {
 	case runtimeAuthTypeNone:
 		return s.plainClient, nil
@@ -186,12 +195,18 @@ func (s *RuntimeSource) clientFor(env string, auth RuntimeAuth) (*http.Client, e
 		}
 		return client, nil
 
+	case runtimeAuthTypeKerberos:
+		if s.kerberos == nil {
+			return nil, fmt.Errorf("runtime Kerberos client pool is not configured")
+		}
+		return s.kerberos.clientFor(env)
+
 	default:
 		return nil, fmt.Errorf("unsupported runtime auth type %q", auth.Type)
 	}
 }
 
-// isAcceptedStatus verifies if the response status code is in the list
+// isAcceptedStatus verifies if the response status code is in the list.
 func isAcceptedStatus(status int, accepted []int) bool {
 	if len(accepted) == 0 {
 		return status == http.StatusOK

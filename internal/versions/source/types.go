@@ -50,3 +50,12 @@ type EOLProduct struct {
 	Product   string
 	PreferLTS bool
 }
+
+// RuntimeKerberosProfile contains the environment-specific Kerberos identity.
+// Files are deliberately loaded only when a Kerberos-authenticated source runs.
+type RuntimeKerberosProfile struct {
+	Principal  string
+	Realm      string
+	KeytabPath string
+	ConfigPath string
+}
