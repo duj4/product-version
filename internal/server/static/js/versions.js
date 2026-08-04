@@ -162,9 +162,9 @@ function renderProductRow(product) {
       </div>
       <div class="min-w-0">
         <div class="max-w-[195px] break-words font-bold leading-5 text-slate-900" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
-        <div class="mt-1 flex flex-wrap items-center gap-1.5">
-          <span class="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-500">${escapeHtml(product?.key || "-")}</span>
-          <span class="rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600">${escapeHtml(metadata.application_type || "unknown")}</span>
+        <div class="mt-1 flex min-w-0 flex-nowrap items-center gap-1.5">
+          <span class="min-w-0 truncate rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-500" title="${escapeHtml(product?.key || "-")}">${escapeHtml(product?.key || "-")}</span>
+          <span class="shrink-0 whitespace-nowrap rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600">${escapeHtml(metadata.application_type || "unknown")}</span>
         </div>
       </div>
     </div>
