@@ -195,13 +195,12 @@ function renderCMDB(cmdb = {}) {
 <div class="space-y-2">
   <div class="flex items-center gap-2">
     <span class="shrink-0 whitespace-nowrap font-mono text-base font-black text-slate-900">${escapeHtml(primary)}</span>
-    ${sourceStatusPill("ok")}
+    ${sourceSuccessDot("CMDB version found")}
+    ${versions.length === 1 ? renderPrimaryCMDBLifecycle(versions[0]?.lifecycle_state) : ""}
   </div>
   ${versions.length > 1
     ? `<div class="space-y-1">${versions.slice(0, 3).map(renderCMDBVersion).join("")}</div>`
-    : versions.length === 1
-      ? renderPrimaryCMDBLifecycle(versions[0]?.lifecycle_state)
-      : ""}
+    : ""}
 </div>
 `
 }
@@ -216,14 +215,10 @@ function renderPrimaryCMDBLifecycle(state) {
       : ""
 
   if (badgeClasses) {
-    return `
-<div>
-  <span class="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-bold ${badgeClasses}">${escapeHtml(shortLifecycle(value))}</span>
-</div>
-`
+    return `<span class="inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${badgeClasses}">${escapeHtml(shortLifecycle(value))}</span>`
   }
 
-  return `<div class="text-[11px] text-slate-400">${escapeHtml(value)}</div>`
+  return `<span class="text-[11px] text-slate-400">${escapeHtml(value)}</span>`
 }
 
 function renderCMDBVersion(item = {}) {
@@ -273,7 +268,7 @@ function renderRuntime(deployment, env) {
 <div class="space-y-2" title="${escapeHtml(candidateTitle)}">
   <div class="flex items-center gap-2">
     <span class="font-mono text-base font-black text-slate-900">${escapeHtml(deployment.version || "-")}</span>
-    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 text-emerald-500 status-dot"></span>
+    ${sourceSuccessDot("Runtime version detected")}
   </div>
   <div class="flex flex-wrap items-center gap-1.5">
     <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500">${escapeHtml(deployment.type || "http")}</span>
@@ -538,9 +533,8 @@ function signalBadge(text, color, title) {
   return `<span class="rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${classes}" title="${escapeHtml(title || text)}">${escapeHtml(text)}</span>`
 }
 
-function sourceStatusPill(status) {
-  if (status !== "ok") return ""
-  return `<span class="shrink-0 whitespace-nowrap rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600">Registered</span>`
+function sourceSuccessDot(title) {
+  return `<span class="status-dot h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 text-emerald-500" role="img" aria-label="${escapeHtml(title)}" title="${escapeHtml(title)}"></span>`
 }
 
 function sourcePlaceholder(label, title) {
